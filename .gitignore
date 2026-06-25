@@ -5,8 +5,7 @@ ml/lung/raw/
 ml/lung/processed/
 data/
 
-# Trained models (large binary files)
-models/*.keras
+# Models tracked via Git LFS (see .gitattributes)
 
 # Firmware build artifacts
 firmware/.pio/
