@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cardio Diagnostics</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f0f4f8;
+    color: #1a2b3c;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem 1rem;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+  header h1 {
+    font-size: 1.9rem;
+    font-weight: 700;
+    color: #1a4e8a;
+    letter-spacing: -0.5px;
+  }
+  header p {
+    color: #5a7490;
+    margin-top: 0.4rem;
+    font-size: 0.95rem;
+  }
+
+  .card {
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 2px 16px rgba(26,78,138,0.09);
+    padding: 2rem;
+    width: 100%;
+    max-width: 560px;
+    margin-bottom: 1.5rem;
+  }
+
+  .card-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #1a4e8a;
+    margin-bottom: 1.2rem;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+  }
+
+  /* Drop zone */
+  #drop-zone {
+    border: 2.5px dashed #93b8e0;
+    border-radius: 12px;
+    padding: 2.5rem 1.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .2s, background .2s;
+    background: #f8fbff;
+  }
+  #drop-zone.dragover {
+    border-color: #1a6ecf;
+    background: #e8f2ff;
+  }
+  #drop-zone svg { color: #6aaee8; margin-bottom: .75rem; }
+  #drop-zone .hint { color: #5a7490; font-size: .9rem; margin-top: .5rem; }
+  #drop-zone strong { color: #1a4e8a; }
+  #file-input { display: none; }
+
+  /* Waveform */
+  #waveform-wrap { margin-top: 1.2rem; display: none; }
+  #waveform-wrap label { font-size: .8rem; color: #5a7490; margin-bottom: .3rem; display: block; }
+  canvas#waveform {
+    width: 100%; height: 80px;
+    border-radius: 8px;
+    background: #f0f6ff;
+    display: block;
+  }
+  #file-name {
+    margin-top: .5rem;
+    font-size: .82rem;
+    color: #1a6ecf;
+    word-break: break-all;
+  }
+
+  /* Classify button */
+  #classify-btn {
+    display: none;
+    width: 100%;
+    margin-top: 1.2rem;
+    padding: .85rem;
+    background: #1a6ecf;
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .2s;
+  }
+  #classify-btn:hover { background: #1558a8; }
+  #classify-btn:disabled { background: #8ab1d9; cursor: not-allowed; }
+
+  /* Spinner */
+  .spinner {
+    display: inline-block;
+    width: 18px; height: 18px;
+    border: 3px solid rgba(255,255,255,.4);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+    vertical-align: middle;
+    margin-right: .5rem;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Result card (shared by upload + live) */
+  .result-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+  .type-badge {
+    background: #e8f2ff;
+    color: #1a4e8a;
+    border-radius: 999px;
+    padding: .3rem .85rem;
+    font-size: .8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+  }
+  .label-badge {
+    display: inline-block;
+    padding: .55rem 1.4rem;
+    border-radius: 999px;
+    font-size: 1.55rem;
+    font-weight: 700;
+    letter-spacing: .03em;
+  }
+  .label-badge.normal   { background: #d4f5e9; color: #0f7a50; }
+  .label-badge.abnormal { background: #fde8e8; color: #c0392b; }
+
+  .confidence-row { margin-top: .8rem; }
+  .confidence-row label {
+    font-size: .82rem;
+    color: #5a7490;
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: .35rem;
+  }
+  .bar-track {
+    height: 10px;
+    background: #e9f0f8;
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%;
+    border-radius: 999px;
+    transition: width .6s ease;
+  }
+  .bar-fill.normal   { background: #2ecc87; }
+  .bar-fill.abnormal { background: #e74c3c; }
+
+  .scores-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .6rem;
+    margin-top: 1rem;
+  }
+  .score-box {
+    background: #f8fbff;
+    border-radius: 8px;
+    padding: .65rem 1rem;
+    text-align: center;
+  }
+  .score-box .pct  { font-size: 1.4rem; font-weight: 700; color: #1a4e8a; }
+  .score-box .lbl  { font-size: .75rem; color: #5a7490; margin-top: .15rem; }
+
+  .meta { font-size: .8rem; color: #8aaccc; margin-top: .8rem; }
+
+  #result-card { display: none; }
+
+  /* Error */
+  #error-box, #live-error {
+    display: none;
+    background: #fde8e8;
+    color: #c0392b;
+    border-radius: 8px;
+    padding: .8rem 1rem;
+    font-size: .9rem;
+    margin-top: 1rem;
+  }
+
+  /* ── Live classification ── */
+  .live-port-row {
+    display: flex;
+    gap: .75rem;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+  .live-port-row label {
+    font-size: .85rem;
+    color: #5a7490;
+    white-space: nowrap;
+  }
+  #live-port {
+    flex: 1;
+    padding: .55rem .8rem;
+    border: 1.5px solid #c5d8ef;
+    border-radius: 8px;
+    font-size: .95rem;
+    color: #1a2b3c;
+    outline: none;
+    transition: border-color .2s;
+  }
+  #live-port:focus { border-color: #1a6ecf; }
+
+  #live-btn {
+    width: 100%;
+    padding: .85rem;
+    background: #0f7a50;
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .2s;
+  }
+  #live-btn:hover    { background: #0b6040; }
+  #live-btn.stopping { background: #c0392b; }
+  #live-btn.stopping:hover { background: #a93226; }
+  #live-btn:disabled { background: #8ab1d9; cursor: not-allowed; }
+
+  #live-status-row {
+    display: none;
+    margin-top: 1.1rem;
+  }
+  .live-status-label {
+    font-size: .82rem;
+    color: #5a7490;
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: .35rem;
+    align-items: center;
+  }
+  .live-mode-chip {
+    background: #e8f2ff;
+    color: #1a4e8a;
+    border-radius: 999px;
+    padding: .15rem .6rem;
+    font-size: .75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  .live-progress-track {
+    height: 10px;
+    background: #e9f0f8;
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .live-progress-fill {
+    height: 100%;
+    background: #0f7a50;
+    border-radius: 999px;
+    transition: width .4s linear;
+  }
+  #live-status-text {
+    font-size: .8rem;
+    color: #5a7490;
+    margin-top: .4rem;
+    text-align: center;
+  }
+
+  #live-result-card { display: none; margin-top: 1.2rem; }
+  #live-result-card .result-header { margin-bottom: .8rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Cardio Diagnostics</h1>
+  <p>Upload a WAV file or use live recording via Arduino</p>
+</header>
+
+<!-- Upload card -->
+<div class="card">
+  <div class="card-title">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+      <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+    </svg>
+    Upload WAV File
+  </div>
+
+  <div id="drop-zone" onclick="document.getElementById('file-input').click()">
+    <svg width="42" height="42" viewBox="0 0 24 24" fill="none"
+         stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+      <polyline points="17 8 12 3 7 8"/>
+      <line x1="12" y1="3" x2="12" y2="15"/>
+    </svg>
+    <p><strong>Drop a WAV file here</strong> or click to browse</p>
+    <p class="hint">≤ 6 s → heart model &nbsp;|&nbsp; > 6 s → lung model</p>
+  </div>
+  <input type="file" id="file-input" accept=".wav,audio/wav">
+
+  <div id="waveform-wrap">
+    <label>Waveform preview</label>
+    <canvas id="waveform"></canvas>
+    <div id="file-name"></div>
+  </div>
+
+  <button id="classify-btn" onclick="classify()">Classify</button>
+  <div id="error-box"></div>
+</div>
+
+<!-- Upload result card -->
+<div class="card" id="result-card">
+  <div class="result-header">
+    <span class="type-badge" id="res-type"></span>
+    <span class="label-badge" id="res-label"></span>
+  </div>
+  <div class="confidence-row">
+    <label>
+      <span>Confidence</span>
+      <span id="res-confidence"></span>
+    </label>
+    <div class="bar-track">
+      <div class="bar-fill" id="res-bar" style="width:0%"></div>
+    </div>
+  </div>
+  <div class="scores-grid">
+    <div class="score-box">
+      <div class="pct" id="score-normal">—</div>
+      <div class="lbl">Normal</div>
+    </div>
+    <div class="score-box">
+      <div class="pct" id="score-abnormal">—</div>
+      <div class="lbl">Abnormal</div>
+    </div>
+  </div>
+  <div class="meta" id="res-meta"></div>
+</div>
+
+<!-- Live classification card -->
+<div class="card">
+  <div class="card-title">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"/>
+      <circle cx="12" cy="12" r="3" fill="currentColor"/>
+    </svg>
+    Live Classification
+  </div>
+
+  <div class="live-port-row">
+    <label for="live-port">Serial port</label>
+    <input id="live-port" type="text" value="COM3" placeholder="COM3">
+  </div>
+
+  <p style="font-size:.83rem;color:#5a7490;margin-bottom:1rem;">
+    Set D2 pin → GND for <strong>heart</strong> &nbsp;|&nbsp; leave D2 open for <strong>lung</strong>.<br>
+    Recording starts automatically and classifies when done.
+  </p>
+
+  <button id="live-btn" onclick="liveToggle()">Start Recording</button>
+
+  <div id="live-status-row">
+    <div class="live-status-label">
+      <span id="live-status-text-label">Recording…</span>
+      <span class="live-mode-chip" id="live-mode-chip" style="display:none"></span>
+    </div>
+    <div class="live-progress-track">
+      <div class="live-progress-fill" id="live-progress-fill" style="width:0%"></div>
+    </div>
+    <div id="live-status-text"></div>
+  </div>
+
+  <div id="live-error"></div>
+
+  <!-- Live result shown inside the live card -->
+  <div id="live-result-card">
+    <div class="result-header">
+      <span class="type-badge" id="live-res-type"></span>
+      <span class="label-badge" id="live-res-label"></span>
+    </div>
+    <div class="confidence-row">
+      <label>
+        <span>Confidence</span>
+        <span id="live-res-confidence"></span>
+      </label>
+      <div class="bar-track">
+        <div class="bar-fill" id="live-res-bar" style="width:0%"></div>
+      </div>
+    </div>
+    <div class="scores-grid">
+      <div class="score-box">
+        <div class="pct" id="live-score-normal">—</div>
+        <div class="lbl">Normal</div>
+      </div>
+      <div class="score-box">
+        <div class="pct" id="live-score-abnormal">—</div>
+        <div class="lbl">Abnormal</div>
+      </div>
+    </div>
+    <div class="meta" id="live-res-meta"></div>
+  </div>
+</div>
+
+<script>
+  // ── Upload classify ──────────────────────────────────────────────────────────
+  const dropZone    = document.getElementById('drop-zone');
+  const fileInput   = document.getElementById('file-input');
+  const classifyBtn = document.getElementById('classify-btn');
+  const waveWrap    = document.getElementById('waveform-wrap');
+  const wavCanvas   = document.getElementById('waveform');
+  const fileNameEl  = document.getElementById('file-name');
+  const resultCard  = document.getElementById('result-card');
+  const errorBox    = document.getElementById('error-box');
+
+  let selectedFile = null;
+
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    const f = e.dataTransfer.files[0];
+    if (f) handleFile(f);
+  });
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) handleFile(fileInput.files[0]);
+  });
+
+  function handleFile(f) {
+    if (!f.name.toLowerCase().endsWith('.wav')) { showError('Please upload a .wav file.'); return; }
+    selectedFile = f;
+    fileNameEl.textContent = f.name + '  (' + (f.size / 1024).toFixed(1) + ' KB)';
+    waveWrap.style.display = 'block';
+    classifyBtn.style.display = 'block';
+    resultCard.style.display = 'none';
+    errorBox.style.display = 'none';
+    drawWaveform(f);
+  }
+
+  function drawWaveform(file) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      audioCtx.decodeAudioData(e.target.result, buf => {
+        const data  = buf.getChannelData(0);
+        const ctx2d = wavCanvas.getContext('2d');
+        const dpr   = window.devicePixelRatio || 1;
+        wavCanvas.width  = wavCanvas.offsetWidth  * dpr;
+        wavCanvas.height = wavCanvas.offsetHeight * dpr;
+        ctx2d.scale(dpr, dpr);
+        const W = wavCanvas.offsetWidth, H = wavCanvas.offsetHeight;
+        ctx2d.clearRect(0, 0, W, H);
+        ctx2d.strokeStyle = '#1a6ecf';
+        ctx2d.lineWidth   = 1.2;
+        ctx2d.beginPath();
+        const step = Math.ceil(data.length / W);
+        for (let i = 0; i < W; i++) {
+          let mn = Infinity, mx = -Infinity;
+          for (let j = 0; j < step; j++) {
+            const v = data[i * step + j] || 0;
+            if (v < mn) mn = v; if (v > mx) mx = v;
+          }
+          ctx2d.moveTo(i, (1 - (mn + 1) / 2) * H);
+          ctx2d.lineTo(i, (1 - (mx + 1) / 2) * H);
+        }
+        ctx2d.stroke();
+        audioCtx.close();
+      }).catch(() => {});
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  async function classify() {
+    if (!selectedFile) return;
+    classifyBtn.disabled = true;
+    classifyBtn.innerHTML = '<span class="spinner"></span>Analysing…';
+    errorBox.style.display = 'none';
+    resultCard.style.display = 'none';
+    const fd = new FormData();
+    fd.append('file', selectedFile);
+    try {
+      const resp = await fetch('/classify', { method: 'POST', body: fd });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'Server error');
+      showResult(data);
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      classifyBtn.disabled = false;
+      classifyBtn.innerHTML = 'Classify';
+    }
+  }
+
+  function showResult(d) {
+    const isAbn = d.label === 'Abnormal';
+    document.getElementById('res-type').textContent       = d.type.toUpperCase() + ' SOUND';
+    const lbl = document.getElementById('res-label');
+    lbl.textContent = d.label;
+    lbl.className   = 'label-badge ' + (isAbn ? 'abnormal' : 'normal');
+    document.getElementById('res-confidence').textContent = d.confidence + '%';
+    const bar = document.getElementById('res-bar');
+    bar.style.width = d.confidence + '%';
+    bar.className   = 'bar-fill ' + (isAbn ? 'abnormal' : 'normal');
+    document.getElementById('score-normal').textContent   = d.all_scores.normal   + '%';
+    document.getElementById('score-abnormal').textContent = d.all_scores.abnormal + '%';
+    document.getElementById('res-meta').textContent       = 'Duration: ' + d.duration + 's  |  Model: ' + d.type;
+    resultCard.style.display = 'block';
+  }
+
+  function showError(msg) {
+    errorBox.textContent   = '⚠ ' + msg;
+    errorBox.style.display = 'block';
+  }
+
+  // ── Live classification ──────────────────────────────────────────────────────
+  const liveBtn         = document.getElementById('live-btn');
+  const liveStatusRow   = document.getElementById('live-status-row');
+  const liveProgressFill= document.getElementById('live-progress-fill');
+  const liveStatusLabel = document.getElementById('live-status-text-label');
+  const liveStatusText  = document.getElementById('live-status-text');
+  const liveModeChip    = document.getElementById('live-mode-chip');
+  const liveResultCard  = document.getElementById('live-result-card');
+  const liveError       = document.getElementById('live-error');
+
+  let liveRunning  = false;
+  let livePollTimer = null;
+
+  function liveToggle() {
+    if (liveRunning) {
+      liveStop();
+    } else {
+      liveStart();
+    }
+  }
+
+  async function liveStart() {
+    const port = document.getElementById('live-port').value.trim() || 'COM3';
+    liveError.style.display  = 'none';
+    liveResultCard.style.display = 'none';
+    liveStatusRow.style.display  = 'block';
+    liveProgressFill.style.width = '0%';
+    liveStatusLabel.textContent  = 'Connecting…';
+    liveStatusText.textContent   = 'Opening ' + port + ' at 115200 baud…';
+    liveModeChip.style.display   = 'none';
+
+    liveBtn.textContent = 'Stop';
+    liveBtn.classList.add('stopping');
+    liveRunning = true;
+
+    try {
+      const resp = await fetch('/live/start?port=' + encodeURIComponent(port));
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.error || 'Failed to start');
+      livePollTimer = setInterval(livePoll, 500);
+    } catch (err) {
+      liveShowError(err.message);
+      liveReset();
+    }
+  }
+
+  async function liveStop() {
+    clearInterval(livePollTimer);
+    await fetch('/live/stop').catch(() => {});
+    liveReset();
+  }
+
+  async function livePoll() {
+    try {
+      const resp = await fetch('/live/status');
+      const d    = await resp.json();
+
+      if (d.mode) {
+        liveModeChip.textContent    = d.mode.toUpperCase();
+        liveModeChip.style.display  = 'inline-block';
+      }
+
+      if (d.status === 'syncing') {
+        liveStatusLabel.textContent = 'Syncing to Arduino…';
+        liveStatusText.textContent  = 'Scanning for frame header…';
+        liveProgressFill.style.width = '0%';
+
+      } else if (d.status === 'recording') {
+        const dur = d.mode === 'heart' ? 5 : 10;
+        liveStatusLabel.textContent = 'Recording ' + (d.mode || '') + '…';
+        liveStatusText.textContent  = Math.round(d.progress / 100 * dur * 10) / 10 + 's / ' + dur + 's';
+        liveProgressFill.style.width = d.progress + '%';
+
+      } else if (d.status === 'classifying') {
+        liveStatusLabel.textContent  = 'Classifying…';
+        liveStatusText.textContent   = 'Running model inference…';
+        liveProgressFill.style.width = '100%';
+
+      } else if (d.status === 'done') {
+        clearInterval(livePollTimer);
+        liveShowResult(d.result);
+        liveReset(false);
+
+      } else if (d.status === 'error') {
+        clearInterval(livePollTimer);
+        liveShowError(d.error || 'Unknown error');
+        liveReset();
+
+      } else if (d.status === 'idle' && !liveRunning) {
+        clearInterval(livePollTimer);
+      }
+    } catch (e) {
+      // network hiccup — keep polling
+    }
+  }
+
+  function liveShowResult(d) {
+    if (!d) return;
+    const isAbn = d.label === 'Abnormal';
+    document.getElementById('live-res-type').textContent       = d.type.toUpperCase() + ' SOUND';
+    const lbl = document.getElementById('live-res-label');
+    lbl.textContent = d.label;
+    lbl.className   = 'label-badge ' + (isAbn ? 'abnormal' : 'normal');
+    document.getElementById('live-res-confidence').textContent = d.confidence + '%';
+    const bar = document.getElementById('live-res-bar');
+    bar.style.width = d.confidence + '%';
+    bar.className   = 'bar-fill ' + (isAbn ? 'abnormal' : 'normal');
+    document.getElementById('live-score-normal').textContent   = d.all_scores.normal   + '%';
+    document.getElementById('live-score-abnormal').textContent = d.all_scores.abnormal + '%';
+    document.getElementById('live-res-meta').textContent       = 'Duration: ' + d.duration + 's  |  Live recording';
+    liveResultCard.style.display = 'block';
+    liveStatusRow.style.display  = 'none';
+  }
+
+  function liveShowError(msg) {
+    liveError.textContent   = '⚠ ' + msg;
+    liveError.style.display = 'block';
+  }
+
+  function liveReset(hideStatus = true) {
+    liveRunning = false;
+    liveBtn.textContent = 'Start Recording';
+    liveBtn.classList.remove('stopping');
+    if (hideStatus) liveStatusRow.style.display = 'none';
+  }
+</script>
+</body>
+</html>

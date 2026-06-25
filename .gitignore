@@ -1,0 +1,33 @@
+# Datasets and processed data
+ml/heart/raw/
+ml/heart/processed/
+ml/lung/raw/
+ml/lung/processed/
+data/
+
+# Trained models (large binary files)
+models/*.keras
+
+# Firmware build artifacts
+firmware/.pio/
+
+# Test audio files
+*.wav
+
+# Training logs (keep experiments.md)
+ml/logs/*.log
+
+# Claude local settings
+.claude/settings.local.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# OS
+.DS_Store
+Thumbs.db
